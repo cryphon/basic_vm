@@ -28,12 +28,6 @@ int *pc, *sp, *bp, ax, cycle;
 enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, CLOS, PRTF, MALC,MSET, MCMP, EXIT };
 
 
-
-void program(){
-  // do something here
-}
-
-
 int eval(){
   int op, *tmp;
 
@@ -148,8 +142,6 @@ int main(int argc, char *argv[]) {
   pc = text;
 
   //printf("next operation code: %d", *pc++);
-  program();
-
   return eval();
 }
 
