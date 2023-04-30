@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 
   // alloc mem for vm
   if(!(text = old_text = malloc(poolsize))){
-    printf("could not malloc(%d), for text area\n", poolsize);
+    printf("could not malloc(%d) for text area\n", poolsize);
     return -1;
   }
 
