@@ -23,12 +23,12 @@ char *src, *old_src; // pointer to source code string
 
 // registers
 /* 
- * pc = program_counter 
- * sp = stack_pointer
- * bp = base_pointer
- * ax = general_register
+ * pc = program counter 
+ * stack_ptr = stack_ptr
+ * base_ptr = base_ptr
+ * gen_reg = general_register
  */
-int *pc, *sp, *bp, ax, cycle;
+int *pc, *stack_ptr, *base_ptr, gen_reg, cycle;
 
 //tokens and classes
 enum {
@@ -130,50 +130,49 @@ void* eval(){
   op = *pc++; // get next operation code
 
   
-  if(op == IMM) {ax = *pc++;}                                             // load immediate value to ax
-  else if(op == LC) {ax = *(char *)ax;}                                   // load character to ax, address in ax
-  else if(op == LI) {ax = *(int *)ax;}                                    // load integer to ax, address in ax
-  else if(op == SC) {ax = *(char *)*sp++ = ax;}                           //save character to address, value in ax, address on stack
-  else if(op == SI) {*(int *)*sp++ = ax;}                                 // save integer to address, value in ax, address on stack
+  if(op == IMM) {gen_reg = *pc++;} // load immediate value to gen_reg
+  else if(op == LC) {gen_reg = *(char *)gen_reg;} // load character to gen_reg, address in gen_reg
+  else if(op == LI) {gen_reg = *(int *)gen_reg;} // load integer to gen_reg, address in gen_reg
+  else if(op == SC) {gen_reg = *(char *)*stack_ptr++ = gen_reg;} //save character to address, value in gen_reg, address on stack
+  else if(op == SI) {*(int *)*stack_ptr++ = gen_reg;} // save integer to address, value in gen_reg, address on stack
 
 
 
-  else if(op == PUSH) {*--sp = ax;}                                       // push value of ax onto stack
-  else if(op == JMP) {pc = (int *)*pc;}                                   // jump to address
-  else if(op == JZ) {pc = ax ? pc +1: (int *)*pc;}                        // jump if ax is zero
-  else if(op == JNZ) {pc = ax ? (int *)*pc : pc + 1;}                     // jump if ax is not zero
-  else if(op == CALL) {*--sp = (int)(pc + 1); pc = (int *)*pc;}           // call subroutine
+  else if(op == PUSH) {*--stack_ptr = gen_reg;} // push value of gen_reg onto stack
+  else if(op == JMP) {pc = (int *)*pc;} // jump to address
+  else if(op == JZ) {pc = gen_reg ? pc +1: (int *)*pc;} // jump if gen_reg is zero
+  else if(op == JNZ) {pc = gen_reg ? (int *)*pc : pc + 1;} // jump if gen_reg is not zero
+  else if(op == CALL) {*--stack_ptr = (int)(pc + 1); pc = (int *)*pc;} // call subroutine
+  else if(op == ENT) {*--stack_ptr = (int)base_ptr; base_ptr = stack_ptr; stack_ptr = stack_ptr - *pc++;} //make new stack frame 
+  else if(op == ADJ) {stack_ptr = stack_ptr + *pc++;} // add estack_ptr, <size>
+  else if(op == LEV) {stack_ptr = base_ptr; base_ptr = (int *)*stack_ptr++; pc = (int *)*stack_ptr++;} // restore call frame and pc
+  else if(op == LEA) {gen_reg = (int)(base_ptr + *pc++);} //load address for arguments
 
-  else if(op == ENT) {*--sp = (int)bp; bp = sp; sp = sp - *pc++;}         //make new stack frame 
-  else if(op == ADJ) {sp = sp + *pc++;}                                   // add esp, <size>
-  else if(op == LEV) {sp = bp; bp = (int *)*sp++; pc = (int *)*sp++;}     // restore call frame and PC
-  else if(op == LEA) {ax = (int)(bp + *pc++);}                            //load address for arguments
 
-
-  else if (op == OR)  ax = *sp++ | ax;
-  else if (op == XOR) ax = *sp++ ^ ax;
-  else if (op == AND) ax = *sp++ & ax;
-  else if (op == EQ)  ax = *sp++ == ax;
-  else if (op == NE)  ax = *sp++ != ax;
-  else if (op == LT)  ax = *sp++ < ax;
-  else if (op == LE)  ax = *sp++ <= ax;
-  else if (op == GT)  ax = *sp++ >  ax;
-  else if (op == GE)  ax = *sp++ >= ax;
-  else if (op == SHL) ax = *sp++ << ax;
-  else if (op == SHR) ax = *sp++ >> ax;
-  else if (op == ADD) ax = *sp++ + ax;
-  else if (op == SUB) ax = *sp++ - ax;
-  else if (op == MUL) ax = *sp++ * ax;
-  else if (op == DIV) ax = *sp++ / ax;
-  else if (op == MOD) ax = *sp++ % ax;
-  else if (op == EXIT) { return (void *)*sp;}
-  else if (op == OPEN) { ax = open((char *)sp[1], sp[0]); }
-  else if (op == CLOS) { ax = close(*sp);}
-  else if (op == READ) { ax = read(sp[2], (char *)sp[1], *sp); }
-  else if (op == PRTF) { tmp = sp + pc[1]; ax = printf((char *)tmp[-1], tmp[-2], tmp[-3], tmp[-4], tmp[-5], tmp[-6]); }
-  else if (op == MALC) { ax = (int)malloc(*sp);}
-  else if (op == MSET) { ax = (int)memset((char *)sp[2], sp[1], *sp);}
-  else if (op == MCMP) { ax = memcmp((char *)sp[2], (char *)sp[1], *sp);}
+  else if (op == OR)  gen_reg = *stack_ptr++ | gen_reg;
+  else if (op == XOR) gen_reg = *stack_ptr++ ^ gen_reg;
+  else if (op == AND) gen_reg = *stack_ptr++ & gen_reg;
+  else if (op == EQ)  gen_reg = *stack_ptr++ == gen_reg;
+  else if (op == NE)  gen_reg = *stack_ptr++ != gen_reg;
+  else if (op == LT)  gen_reg = *stack_ptr++ < gen_reg;
+  else if (op == LE)  gen_reg = *stack_ptr++ <= gen_reg;
+  else if (op == GT)  gen_reg = *stack_ptr++ >  gen_reg;
+  else if (op == GE)  gen_reg = *stack_ptr++ >= gen_reg;
+  else if (op == SHL) gen_reg = *stack_ptr++ << gen_reg;
+  else if (op == SHR) gen_reg = *stack_ptr++ >> gen_reg;
+  else if (op == ADD) gen_reg = *stack_ptr++ + gen_reg;
+  else if (op == SUB) gen_reg = *stack_ptr++ - gen_reg;
+  else if (op == MUL) gen_reg = *stack_ptr++ * gen_reg;
+  else if (op == DIV) gen_reg = *stack_ptr++ / gen_reg;
+  else if (op == MOD) gen_reg = *stack_ptr++ % gen_reg;
+  else if (op == EXIT) { return (void *)*stack_ptr;}
+  else if (op == OPEN) { gen_reg = open((char *)stack_ptr[1], stack_ptr[0]); }
+  else if (op == CLOS) { gen_reg = close(*stack_ptr);}
+  else if (op == READ) { gen_reg = read(stack_ptr[2], (char *)stack_ptr[1], *stack_ptr); }
+  else if (op == PRTF) { tmp = stack_ptr + pc[1]; gen_reg = printf((char *)tmp[-1], tmp[-2], tmp[-3], tmp[-4], tmp[-5], tmp[-6]); }
+  else if (op == MALC) { gen_reg = (int)malloc(*stack_ptr);}
+  else if (op == MSET) { gen_reg = (int)memset((char *)stack_ptr[2], stack_ptr[1], *stack_ptr);}
+  else if (op == MCMP) { gen_reg = memcmp((char *)stack_ptr[2], (char *)stack_ptr[1], *stack_ptr);}
 
 
   else if(op == SSLD) { data = (char *)*pc++; } //save to data segment
@@ -219,17 +218,12 @@ int main(int argc, char *argv[]) {
   memset(stack, 0, poolsize);
 
 
-  //init bp, sp, ax
-  bp = sp = (int *)((int)stack + poolsize);
-  ax = 0;
+  //init base_ptr, stack_ptr, gen_reg
+  base_ptr = stack_ptr = (int *)((int)stack + poolsize);
+  gen_reg = 0;
 
 
   i = 0;
-
-
-
-  //operations for 30 + 20
-  
 
   text[i++] = SSLD;
   text[i++] = (int)"hello";
@@ -240,7 +234,7 @@ int main(int argc, char *argv[]) {
   pc = text;
 
   //printf("next operation code: %d", *pc++);
-  void* response = eval();
+  void* restack_ptronse = eval();
   printf("%s\n", data);
 }
 
