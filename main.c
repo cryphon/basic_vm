@@ -2,15 +2,24 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
-#define int long long
+
+#define int long long 
+
 
 int poolsize;
+int line_number;
+
+int token, //current token
+    token_val; //value of current token
+
 
 int *text, //text segment
     *old_text, // dump text segment
     *stack; // stack
 char *data; // data segment
 
+
+char *src, *old_src; // pointer to source code string
 
 // registers
 /* 
@@ -21,14 +30,100 @@ char *data; // data segment
  */
 int *pc, *sp, *bp, ax, cycle;
 
-
+//tokens and classes
+enum {
+  Num = 128, Fun, Sysm,   Glo, Loc, Id, Char, Else, Enum, If, Int, Return, Sizeof, While, Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne, Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod, Inc, Dec, Brak };
 
 
 //CPU instructions based on x86 
-enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, CLOS, PRTF, MALC,MSET, MCMP, EXIT };
+enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, CLOS, PRTF, MALC,MSET, MCMP, EXIT, SSLD, CSLD };
 
 
-int eval(){
+//interpreter does not accept struct therefore enum is used
+enum { Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize };
+
+int token_val;      //val of current token
+int *current_id,    // current parsed Id
+    *symbols;       // symbol table
+
+void next() {
+  char *last_pos;
+  int hash;
+  while(token = *src){
+    ++src;
+
+    if(token == '\n'){
+      ++line_number;
+    }
+    else if(token == '#'){
+      //skip, macro not supported
+      while(*src != 0 && *src != '\n'){
+        src++;
+      }
+    }
+    else if((token >= 'a' && token <= 'z') || (token >= 'A' && token <= 'Z') || (token == '_')){
+      
+      //parse id
+      last_pos = src -1;
+      hash = token;
+
+      while((*src >= 'a' && *src <= 'z') || (*src >= 'A' && *src <= 'Z') || (*src >= '0' && *src <= '9') || (*src == '_')){
+        hash = hash * 147 + *src;
+        src++;
+      }
+
+      //look for existing identifier
+      current_id = symbols;
+      while(current_id[Token]){
+        if(current_id[Hash] == hash && !memcmp((char *)current_id[Name], last_pos, src - last_pos)) {
+          //found one, return
+          token = current_id[Token];
+          return;
+        }
+        current_id = current_id + IdSize;
+      }
+
+      //store new ID
+      current_id[Name] = (int)last_pos;
+      current_id[Hash] = hash;
+      token = current_id[Token] = Id;
+      return;
+    }
+    else if(token >= '0' && token <= '9'){
+      //parse number, three types: dec(123) hex(0x123) oct(012)
+      token_val = token - '0';
+      if(token_val > 0){
+        //dec starts with number [1-9]
+        while(*src >= '0' && *src <= '9'){
+          token_val = token_val*10 + *src++ - '0';
+        }
+      }
+      else {
+        // starts with number 0
+        if(*src == 'x' || *src == 'X'){
+          //hex
+          token = *++src;
+          while((token >= '0' && token <= '9') || (token >= 'a' && token <= 'f') || (token >= 'A' && token <= 'F')){
+            token_val = token_val * 16 +  (token & 15) + (token >= 'A' ? 9 : 0);
+            token = *++src;
+          }
+        }
+        else{
+          //oct
+          while(*src >= '0' && *src <= '7'){
+            token_val = token_val * 8 + *src++ - '0';
+          }
+        }
+      }
+      token = Num;
+      return;
+    }
+  }
+  return;
+}
+
+
+void* eval(){
   int op, *tmp;
 
  while(1){
@@ -48,8 +143,6 @@ int eval(){
   else if(op == JZ) {pc = ax ? pc +1: (int *)*pc;}                        // jump if ax is zero
   else if(op == JNZ) {pc = ax ? (int *)*pc : pc + 1;}                     // jump if ax is not zero
   else if(op == CALL) {*--sp = (int)(pc + 1); pc = (int *)*pc;}           // call subroutine
-
-
 
   else if(op == ENT) {*--sp = (int)bp; bp = sp; sp = sp - *pc++;}         //make new stack frame 
   else if(op == ADJ) {sp = sp + *pc++;}                                   // add esp, <size>
@@ -73,7 +166,7 @@ int eval(){
   else if (op == MUL) ax = *sp++ * ax;
   else if (op == DIV) ax = *sp++ / ax;
   else if (op == MOD) ax = *sp++ % ax;
-  else if (op == EXIT) { printf("exit(%d)", *sp); return *sp;}
+  else if (op == EXIT) { return (void *)*sp;}
   else if (op == OPEN) { ax = open((char *)sp[1], sp[0]); }
   else if (op == CLOS) { ax = close(*sp);}
   else if (op == READ) { ax = read(sp[2], (char *)sp[1], *sp); }
@@ -81,12 +174,18 @@ int eval(){
   else if (op == MALC) { ax = (int)malloc(*sp);}
   else if (op == MSET) { ax = (int)memset((char *)sp[2], sp[1], *sp);}
   else if (op == MCMP) { ax = memcmp((char *)sp[2], (char *)sp[1], *sp);}
+
+
+  else if(op == SSLD) { data = (char *)*pc++; } //save to data segment
+  else if(op == CSLD) {
+    //to be implemented
+    *pc++;
+  } //concat *pc++ to data segment
   else{
     printf("unknown instruction:%d\n", op);
-    return -1;
+    return (void *)-1;
   }
 }
-
     return 0;
 }
 
@@ -130,19 +229,19 @@ int main(int argc, char *argv[]) {
 
 
   //operations for 30 + 20
-  text[i++] = IMM;
-  text[i++] = 30;
-  text[i++] = PUSH;
-  text[i++] = IMM;
-  text[i++] = 20;
-  text[i++] = ADD;
-  text[i++] = PUSH;
-  text[i++] = EXIT;
+  
 
+  text[i++] = SSLD;
+  text[i++] = (int)"hello";
+  text[i++] = CSLD;
+  text[i++] = (int)"world";
+  text[i++] = EXIT;
+  
   pc = text;
 
   //printf("next operation code: %d", *pc++);
-  return eval();
+  void* response = eval();
+  printf("%s\n", data);
 }
 
 
