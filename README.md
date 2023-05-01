@@ -56,9 +56,17 @@ https://github.com/lotabout/write-a-C-interpreter/tree/master
 enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, 
        LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT,
        LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN,
-       READ, CLOS, PRTF, MALC, MSET, MCMP, EXIT };
+       READ, CLOS, PRTF, MALC, MSET, MCMP, EXIT, SSLD, CSLD};
 ```
 
+twho extra functions are currently in the code to push string into the data segment
+```c
+else if(op == SSLD) {data = (char *)*pc++; } //save *char to data segment
+else if(op == CSLD) { 
+   //concat *pc++ to data segment
+   // to be implemented
+}
+```
 
 #### Test
 
