@@ -8,7 +8,7 @@
 
 int poolsize;
 int line_number;
-
+int line;
 int token, //current token
     token_val; //value of current token
 
@@ -32,11 +32,17 @@ int *pc, *stack_ptr, *base_ptr, gen_reg, cycle;
 
 //tokens and classes
 enum {
-  Num = 128, Fun, Sysm,   Glo, Loc, Id, Char, Else, Enum, If, Int, Return, Sizeof, While, Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne, Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod, Inc, Dec, Brak };
+  Num = 128, Fun, Sys, Glo, Loc, Id, Char, Else, 
+  Enum, If, Int, Return, Sizeof, While, Assign, Cond, 
+  Lor, Lan, Or, Xor, And, Eq, Ne, Lt, Gt, Le, Ge, Shl, 
+  Shr, Add, Sub, Mul, Div, Mod, Inc, Dec, Brak };
 
 
 //CPU instructions based on x86 
-enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, CLOS, PRTF, MALC,MSET, MCMP, EXIT, SSLD, CSLD };
+enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, 
+      LC, SI, SC, PUSH, OR, XOR, AND, EQ, NE, LT, GT, LE, 
+      GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, 
+      CLOS, PRTF, MALC,MSET, MCMP, EXIT, SSLD, CSLD };
 
 
 //interpreter does not accept struct therefore enum is used
@@ -45,6 +51,7 @@ enum { Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize };
 int token_val;      //val of current token
 int *current_id,    // current parsed Id
     *symbols;       // symbol table
+
 
 void next() {
   char *last_pos;
@@ -114,13 +121,205 @@ void next() {
             token_val = token_val * 8 + *src++ - '0';
           }
         }
-      }
-      token = Num;
+      } token = Num;
       return;
     }
+    else if(token == '"' || token == '\''){
+      //parse string literal    
+      last_pos = data;
+      while(*src != 0 && *src != token){
+        token_val = *src++;
+        if(token_val  == '\\'){
+          //escape char
+          token_val = *src++;
+          if(token_val == 'n'){
+            token_val = '\n';
+          }
+        }
+
+        if(token == '"'){
+          *data++ = token_val;
+        }
+      }
+      src++;
+
+      //if single char return Num token_val
+      if(token == '"'){
+        token_val = (int)last_pos;
+      }
+      else{
+        token = Num;
+      }
+      return;
+    }
+
+
+    // comment or divide
+    else if(token == '/'){
+      if(*src  == '/'){
+        //skip comments
+        while(*src != 0 && *src != '\n'){
+          ++src;
+        }
+      }
+      else{
+        //divide operator
+        token = Div;
+        return;
+      }
+    }
+
+    // = , ==
+    else if(token == '='){
+      src++;
+
+      if(*src == '='){
+        src++;
+        token = Eq;
+      }
+      else{
+        token = Assign;
+      }
+      return;
+    }
+
+    // +, ++
+    else if(token == '+'){
+      if(*src == '+'){
+        src++;
+        token = Inc;
+      }
+      else{
+        token = Add;
+      }
+      return;
+    }
+
+    // -, --
+    else if(token == '-'){
+      if(*src == '-'){
+        src++;
+        token = Dec;
+      }
+      else{
+        token = Sub;
+      }
+      return;
+    }
+
+    // !=
+    else if(token == '!'){
+      //parse !=
+      if(*src == '='){
+        src++;
+        token = Ne;
+      }
+      return;
+    }
+
+    // <=, <<, <
+    else if(token == '<'){
+      //parse '<=', '<<', '<'
+      if(*src == '='){
+        src++;
+        token = Le;
+      }
+      else if(*src == '<'){
+        src++;
+        token = Shl;
+      }
+      else{
+        token = Lt;
+      }
+      return;
+    }
+    else if(token == '>'){
+      if(*src == '='){
+        src++;
+        token = Ge;
+      }
+      else if(*src == '>'){
+        src++;
+        token = Shr;
+      }
+      else{
+        token = Gt;
+      }
+      return;
+    }
+    // |, ||
+    else if(token == '|'){
+      if(*src == '|'){
+        src++;
+        token = Lor;
+      }
+      else{
+        token = Or;
+      }
+      return;
+    }
+
+    // &, &&
+    else if(token == '&'){
+      if(*src == '&'){
+        src++;
+        token = Lan;
+      }
+      else{
+        token = And;
+      }
+      return;
+    }
+
+
+    //general conditions
+    else if(token == '^'){
+      token = Xor;
+      return;
+    }
+
+    else if(token == '%'){
+      token = Mod;
+      return;
+    }
+
+    else if(token == '*'){
+      token = Mul;
+      return;
+    }
+
+    else if(token == '['){
+      token = Brak;
+      return;
+    }
+
+    else if(token == '?'){
+      token = Cond;
+      return;
+    }
+
+    else if(token == '~' || token == ';' || token == '{' || token == '}' || token == '(' || token == ')' || token == ']' || token == ',' || token == ':'){
+      //return char as token
+      return;
+    }
+
   }
   return;
 }
+
+
+
+void program(){
+  next();
+  while(token > 0){
+    printf("token is: %3d('%c')\n", token, token);
+    next();
+  }
+}
+
+
+
+
 
 
 void* eval(){
@@ -189,13 +388,27 @@ void* eval(){
 }
 
 
-int main(int argc, char *argv[]) {
+enum{ CHAR, INT, PTR };
+int *id_main;
+
+
+
+int main(int argc, char **argv) {
 
   #define int long long
 
-  int i;
+  int i, f;
 
-  poolsize = 256 * 1024;
+  argc--;
+  argv++;
+
+  poolsize = 256 * 1024; //size can be changed
+  line = 1;
+
+  if((f = open(*argv, 0)) < 0){
+    printf("could not open(%s)\n", *argv);
+    return -1;
+  }
 
   // alloc mem for vm
   if(!(text = old_text = malloc(poolsize))){
@@ -222,20 +435,49 @@ int main(int argc, char *argv[]) {
   base_ptr = stack_ptr = (int *)((int)stack + poolsize);
   gen_reg = 0;
 
+  src = "char else enum if int return sizeof while "
+          "open read close printf malloc memset memcmp exit void main";
 
-  i = 0;
 
-  text[i++] = SSLD;
-  text[i++] = (int)"hello";
-  text[i++] = CSLD;
-  text[i++] = (int)"world";
-  text[i++] = EXIT;
-  
-  pc = text;
+  //add keywords to table
+  i = Char;
+
+  while(i <= While){
+    next();
+    current_id[Token] = i++;
+  }
+
+  i = OPEN;
+  while(i <= EXIT){
+    next();
+    current_id[Class] = Sys;
+    current_id[Type] = INT;
+    current_id[Value] = i++;
+  }
+
+  next(); current_id[Token] = Char;
+  next(); id_main = current_id;
+
+
+
+  if (!(src = old_src = malloc(poolsize))) {
+        printf("malloc(%d) failed for source area\n", poolsize);
+        return -1;
+    }
+    // read source file
+    if ((i = read(f, src, poolsize-1)) <= 0) {
+        printf("read() returned %d\n", i);
+        return -1;
+    }
+
+
+  src[i] = 0; //EOF char 
+  close(f);
+  program();
 
   //printf("next operation code: %d", *pc++);
-  void* restack_ptronse = eval();
-  printf("%s\n", data);
+  void* response = eval();
+  printf("%s\n", response);
 }
 
 
