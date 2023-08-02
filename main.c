@@ -439,7 +439,7 @@ int main(int argc, char **argv) {
           "open read close printf malloc memset memcmp exit void main";
 
 
-  //add keywords to table
+  //add keywords to sym table
   i = Char;
 
   while(i <= While){
@@ -447,6 +447,8 @@ int main(int argc, char **argv) {
     current_id[Token] = i++;
   }
 
+
+  // add lib to sym table
   i = OPEN;
   while(i <= EXIT){
     next();
