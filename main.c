@@ -44,9 +44,14 @@ enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI,
       GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD, OPEN, READ, 
       CLOS, PRTF, MALC,MSET, MCMP, EXIT, SSLD, CSLD };
 
-
 //interpreter does not accept struct therefore enum is used
 enum { Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize };
+
+//types of vars / functions
+enum {CHAR, INT PTR};
+
+
+
 
 int token_val;      //val of current token
 int *current_id,    // current parsed Id
@@ -312,13 +317,127 @@ void next() {
 void program(){
   next();
   while(token > 0){
-    printf("token is: %3d('%c')\n", token, token);
-    next();
+    global_declaration();
   }
 }
 
 
 
+void match(int tkn){
+  if(token == tkn){
+    next();
+  }
+  printf("%d: expected token:%d\n", line, tkn);
+  exit(-1);
+}
+
+int basetype;
+int expression_type;
+
+void global_declaration(){
+  int type; // tmp, actual var type
+  int i; //tmp
+  basetype = INT;
+
+
+  //parse enum, should treat alone
+  if(token == Enum) {
+    // enum [id] {a = 10, b = 20, ...}
+    match(Enum);
+    if(token != '{'){
+      match(Id); // skip [id] part
+    }
+    if(token == '{'){
+      //parse assign part
+      match('{');
+      enum_declaration();
+      match('}');
+    }
+
+    match(';');
+    return;
+  }
+
+  //parse type info
+  if(token == Int){
+    match(Int);
+  }
+  if(token == Char){
+    match(Char);
+    basetype = CHAR;
+  }
+
+  //parse comma separated variable declaration
+  while(token != ';' && token != '}'){
+    type = basetype;
+
+    // pointer type parsing '****var' may exist
+    while(token == Mul){
+      match(Mul);
+      type = type + PTR;
+    }
+
+    if(token != Id){
+      //invalid declaration
+      printf("%d: bad global declaration\n", line);
+      exit(-1);
+    }
+
+    if(current_id[Class]){
+      //ident exists
+      printf("%d: duplicate global declaration\n", line);
+      exit(-1);
+    }
+
+    match(Id);
+    current_id[Type] = type;
+
+    if(token == '('){
+      current_id[Class] = Fun;
+      current_id[Value] = (int)(text + 1); // address of function
+      function_declaration();
+    } else {
+      //variable declaration
+      current_id[Class] = Glo;
+      current_id[Value] = (int)data; // memory address
+      data = data + sizeof(int);
+    }
+
+    if(token == ','){
+      match(',');
+    }
+  }
+  next();
+}
+
+
+void enum_declaration(){
+  //parse enum [id] {a = 10, b = 20, ...}
+  int i = 0;
+  while(token != '}'){
+    if(token != Id){
+      printf("%d: bad enum identifier", line);
+      exit(-1);
+    }
+    next();
+    if(token == Assign){
+      next();
+      if(token != Num){
+        printf("%d: bad enum initializer", line);
+        exit(-1);
+      }
+      i = token_val;
+      next();
+    }
+    current_id[Class] = Num;
+    current_id[Type] = INT;
+    current_id[Value] = i++;
+
+    if(token == ','){
+      next();
+    }
+  }
+}
 
 
 
