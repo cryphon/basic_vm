@@ -30,6 +30,7 @@ char *src, *old_src; // pointer to source code string
  */
 int *pc, *stack_ptr, *base_ptr, gen_reg, cycle;
 
+int index_of_bp; //index of bp pointer on stack
 //tokens and classes
 enum {
   Num = 128, Fun, Sys, Glo, Loc, Id, Char, Else, 
@@ -48,10 +49,9 @@ enum { LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI,
 enum { Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize };
 
 //types of vars / functions
-enum {CHAR, INT PTR};
-
-
-
+enum {CHAR, INT, PTR};
+int basetype; //type of declaration, global for convenience
+int expr_type; //expression type
 
 int token_val;      //val of current token
 int *current_id,    // current parsed Id
@@ -314,14 +314,6 @@ void next() {
 
 
 
-void program(){
-  next();
-  while(token > 0){
-    global_declaration();
-  }
-}
-
-
 
 void match(int tkn){
   if(token == tkn){
@@ -330,6 +322,180 @@ void match(int tkn){
   printf("%d: expected token:%d\n", line, tkn);
   exit(-1);
 }
+
+
+
+
+
+void function_parameter(){
+  int type;
+  int params;
+  params = 0;
+
+  while(token != ')'){
+
+
+    //int name
+    type = INT;
+    if(token == Int){
+      match(Int);
+    }
+    else if(token == Char){
+      type = CHAR;
+      match(Char);
+    }
+
+
+    //pointer type
+    while(token == Mul){
+      match(Mul);
+      type = type + PTR;
+    }
+
+    //param name
+    if(token != Id){
+      printf("%d: bad parameter declaration\n", line);
+      exit(-1);
+    }
+
+    if(current_id[Class] == Loc){
+      printf("%d: duplicate paramter declaration\n", line);
+      exit(-1);
+    }
+
+    match(Id);
+
+
+    //store local vars
+    current_id[BClass] = current_id[Class];
+    current_id[Class] = Loc;
+    current_id[BType] = current_id[Type];
+    current_id[Type] = type;
+    current_id[BValue] = current_id[Value];
+    current_id[Value] = params++;
+
+    if(token == ','){
+      match(',');
+    }
+  }
+
+  index_of_bp = params + 1;
+}
+
+
+void function_body(){
+
+  //interpreter requires all variables to be declared at start of function
+
+  int pos_local; //pos of local vars on stack
+  int type;
+  pos_local = index_of_bp;
+
+  while(token == Int || token == Char){
+
+    //local var declaration
+    basetype = (token == Int) ? INT : CHAR;
+    match(token);
+
+    while(token != ';'){
+      type = basetype;
+      while(token == Mul){
+        type = type + PTR;
+      }
+
+      if(token != Id){
+        printf("%d: bad local variable declaration\n", line);
+        exit(-1);
+      }
+
+      if(current_id[Class] == Loc){
+        printf("%d: duplicate local declaration\n", line);
+        exit(-1);
+      }
+
+      match(Id);
+
+      //store local vars
+      current_id[BClass] = current_id[Class];
+      current_id[Class] = Loc;
+      current_id[BType] = current_id[Type];
+      current_id[Type] = type;
+      current_id[BValue] = current_id[Value];
+      current_id[Value] = ++pos_local;
+
+      if(token == ','){
+        match(',');
+      }
+    }
+    match(';');
+  }
+
+  //save stack size for local vars
+  *++text  = ENT;
+  *++text = pos_local - index_of_bp;
+
+
+  //TODO: Statements
+  while(token != '}'){
+    statement();
+  }
+
+
+  //emit code for leaving sub function
+  *++text = LEV;
+}
+
+
+void function_declaration(){
+  match('(');
+  function_parameter();
+  match(')');
+  match('{');
+  function_body();
+  match('}');
+
+
+  //unwind local variable declarations for all local variables 
+  current_id = symbols;
+  while(current_id[Token]){
+    if(current_id[Class] == Loc){
+      current_id[Class] = current_id[BClass];
+      current_id[Type] = current_id[BType];
+      current_id[Value] = current_id[BValue];
+    }
+    current_id = current_id + IdSize;
+  }
+}
+
+void enum_declaration(){
+  //parse enum [id] {a = 10, b = 20, ...}
+  int i;
+  i = 0;
+  while(token != '}'){
+    if(token != Id){
+      printf("%d: bad enum identifier", line);
+      exit(-1);
+    }
+    next();
+    if(token == Assign){
+      next();
+      if(token != Num){
+        printf("%d: bad enum initializer", line);
+        exit(-1);
+      }
+      i = token_val;
+      next();
+    }
+    current_id[Class] = Num;
+    current_id[Type] = INT;
+    current_id[Value] = i++;
+
+    if(token == ','){
+      next();
+    }
+  }
+}
+
 
 int basetype;
 int expression_type;
@@ -411,34 +577,12 @@ void global_declaration(){
 }
 
 
-void enum_declaration(){
-  //parse enum [id] {a = 10, b = 20, ...}
-  int i = 0;
-  while(token != '}'){
-    if(token != Id){
-      printf("%d: bad enum identifier", line);
-      exit(-1);
-    }
-    next();
-    if(token == Assign){
-      next();
-      if(token != Num){
-        printf("%d: bad enum initializer", line);
-        exit(-1);
-      }
-      i = token_val;
-      next();
-    }
-    current_id[Class] = Num;
-    current_id[Type] = INT;
-    current_id[Value] = i++;
-
-    if(token == ','){
-      next();
-    }
+void program(){
+  next();
+  while(token > 0){
+    global_declaration();
   }
 }
-
 
 
 void* eval(){
@@ -507,7 +651,6 @@ void* eval(){
 }
 
 
-enum{ CHAR, INT, PTR };
 int *id_main;
 
 
